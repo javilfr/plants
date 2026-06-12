@@ -129,7 +129,16 @@ for tool_call in assistant_message.tool_calls:
 *The loop should stop when: (a) the LLM returns a response with no tool calls, OR (b) the MAX_TOOL_ROUNDS limit is reached. Describe how you will detect each condition and what you will return in each case.*
 
 ```
-[your answer here]
+(a) No tool calls: after each LLM call check `if not assistant_message.tool_calls`.
+    When falsy (None or empty list), return assistant_message.content immediately —
+    this is the normal exit path.
+
+(b) MAX_TOOL_ROUNDS reached: the for-loop exhausts its iterations without returning.
+    After the loop, make one final LLM call WITHOUT tools so the model is forced to
+    give a plain-text summary of everything it learned from the tool results already
+    in the messages list. Return that content.
+    (Alternative: return a static fallback string — but a final LLM call produces a
+    much more useful response for the user.)
 ```
 
 ---
@@ -139,7 +148,12 @@ for tool_call in assistant_message.tool_calls:
 *Once the loop exits because there are no more tool calls, how do you extract the text content from the response object? What field holds the string you should return?*
 
 ```
-[your answer here]
+response.choices[0].message.content
+
+`response.choices` is a list; index 0 is the first (and normally only) completion.
+`.message` is the assistant message object.
+`.content` is the plain string. Guard against None with:
+    return assistant_message.content or "fallback string"
 ```
 
 ---
@@ -152,19 +166,34 @@ for tool_call in assistant_message.tool_calls:
 
 ```
 Query: "How should I care for my calathea?"
-Round 1 tool call: [tool name, args]
-Round 2 tool call: [tool name, args] (if any)
-Final response: [brief description]
+Round 1 tool call: lookup_plant({"plant_name": "calathea"})
+             ← returns full calathea care dict (difficulty: hard, etc.)
+Round 1 tool call: get_seasonal_conditions({})   [may be batched in same round]
+             ← returns current season data (e.g. Summer guidance)
+Final response: personalized advice citing calathea's humidity needs,
+               watering schedule, and summer-specific tips (heat + pest watch)
 ```
 
 **What happens when you ask about a plant that isn't in the database?**
 
 ```
-[describe the behavior you observed]
+lookup_plant() returns {"found": False, "name": "string of pearls",
+  "message": "No plant named 'string of pearls' was found ... Plants currently
+  in the database: Pothos, Snake Plant, ..."}.
+The LLM reads the message, tells the user the plant isn't in its database,
+lists what IS available, and offers general succulent/trailing-plant advice
+based on the user's description — exactly the graceful degradation behavior
+specified in the system prompt.
 ```
 
 **One thing about the tool call API that surprised you:**
 
 ```
-[your answer here]
+A no-argument tool call (e.g. get_seasonal_conditions with no season) sends
+arguments as the JSON string "null" rather than "{}" or an empty string.
+json.loads("null") returns Python None, not an empty dict, which would crash
+tool_args.get(...). The fix is an explicit isinstance check:
+    if not isinstance(tool_args, dict): tool_args = {}
+This is already handled in dispatch_tool() but must also be done before passing
+to dispatch_tool() if you parse arguments yourself in the loop.
 ```

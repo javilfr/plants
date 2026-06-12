@@ -73,7 +73,11 @@ the broadest net, so they go last.
 *Aliases are stored as a list of strings. How will you check if the normalized input matches any alias in the list? Write your approach in pseudocode or plain English.*
 
 ```
-[your answer here]
+For each plant in _plant_db.values():
+    Lowercase every alias string and build a temporary list.
+    If normalized input is in that list → match found, return the plant.
+
+In Python: normalized in [alias.lower() for alias in plant["aliases"]]
 ```
 
 ---
@@ -83,8 +87,12 @@ the broadest net, so they go last.
 *When a plant isn't found, the agent will read your message and use it to decide what to tell the user. Write the exact string you'll return — make it useful to the agent, not just to a human reading logs.*
 
 ```
-[your answer here]
+f"No plant named '{plant_name}' was found in the database. "
+f"Plants currently in the database: {available}. "
+"Offer general care advice based on what the user describes, and let them know their plant isn't in the database."
 ```
+
+The message includes: (1) the unrecognized name so the agent can echo it back, (2) the full list of available plants so the agent can suggest the closest match, and (3) an explicit instruction on how to handle the gap.
 
 ---
 
@@ -94,17 +102,21 @@ the broadest net, so they go last.
 
 **Test: does `"devil's ivy"` return the pothos entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — alias scan finds "devil's ivy" in pothos["aliases"], returns {"found": True, "plant": pothos_dict}
 ```
 
 **Test: does `"SNAKE PLANT"` return the snake plant entry?**
 ```
-[yes / no — if no, describe what happened]
+yes — display_name.lower() == "snake plant", returns {"found": True, "plant": snake_plant_dict}
 ```
 
 **One edge case you discovered while implementing:**
 ```
-[your answer here]
+The model may send plant names like "Monstera deliciosa" (scientific name with capital) or
+"devil's ivy" (alias with apostrophe). Both are handled by normalizing to lowercase before
+any comparison. A subtle issue: the slug keys use underscores (e.g. "snake_plant") but users
+never type underscores — that's why the display_name and alias passes are essential even
+though slug lookup is technically O(1).
 ```
 
 ---
@@ -186,12 +198,12 @@ The full season dict from `_season_data`, plus a `detected_season` boolean. Exam
 
 **Test: does calling with `season=None` return the correct season for the current month?**
 ```
-Current month: [month]
-Expected season: [season]
-Returned season: [season]
+Current month: June (6)
+Expected season: summer
+Returned season: Summer  ✓  (detected_season: True)
 ```
 
 **Test: does calling with `season="winter"` return winter data regardless of the current month?**
 ```
-[yes / no]
+yes — (detected_season: False confirms the caller-specified path was taken)
 ```

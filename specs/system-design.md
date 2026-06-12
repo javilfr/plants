@@ -70,10 +70,10 @@ Tool functions (`tools.py`) are pure data retrieval — they take arguments and 
 | Tool definitions (schemas) | `agent.py` | ✅ Complete | (built) |
 | Tool dispatch | `agent.py` | ✅ Complete | (built) |
 | System prompt | `agent.py` | ✅ Complete | (built) |
-| `lookup_plant()` | `tools.py` | 🔲 Student spec + implementation | Milestone 1 |
-| `get_seasonal_conditions()` | `tools.py` | 🔲 Student spec + implementation | Milestone 1 |
-| `run_agent()` | `agent.py` | 🔲 Student spec + implementation | Milestone 2 |
-| Graceful degradation | `tools.py` + `agent.py` | 🔲 Student analysis + improvement | Milestone 3 |
+| `lookup_plant()` | `tools.py` | ✅ Implemented | Milestone 1 |
+| `get_seasonal_conditions()` | `tools.py` | ✅ Implemented | Milestone 1 |
+| `run_agent()` | `agent.py` | ✅ Implemented | Milestone 2 |
+| Graceful degradation | `tools.py` + `agent.py` | ✅ Analyzed + implemented | Milestone 3 |
 
 ---
 
@@ -121,3 +121,29 @@ To feed the tool result back to the LLM, you append two things to the messages l
 2. A tool result message for each tool call: `{"role": "tool", "content": <result string>, "tool_call_id": <id>}`
 
 Then call the LLM again. This is the core of the agent loop.
+
+---
+
+## Milestone 3: Graceful Degradation Analysis
+
+### Failure modes and how they are handled
+
+| Failure mode | Where it's caught | How it degrades |
+|---|---|---|
+| Plant not in database | `lookup_plant()` | Returns `{"found": False, ...}` with a message listing all available plants and instructing the LLM to offer general advice |
+| Invalid/unknown season | `get_seasonal_conditions()` | Falls back to auto-detecting the season from the current month |
+| Unknown tool name | `dispatch_tool()` | Returns `{"error": "Unknown tool: <name>"}` — LLM sees the error and can explain it |
+| LLM calls tools in a loop | `run_agent()` | `MAX_TOOL_ROUNDS` cap; after the cap a final no-tool LLM call synthesizes a plain-text answer from whatever tool data was already gathered |
+| LLM returns empty content | `run_agent()` | `or "fallback string"` guards on every `.content` access |
+
+### Design decision: rich not-found messages
+
+The key graceful degradation design choice is in `lookup_plant()`'s not-found message. A bare `"plant not found"` would leave the LLM with nothing to work with. Instead the message:
+
+1. Names the unrecognized input so the LLM can echo it back accurately.
+2. Lists every plant that *is* in the database — the LLM can suggest the closest match (e.g., "I don't have string of pearls, but I do have succulents which have similar care needs").
+3. Includes an explicit instruction ("offer general care advice based on what the user describes") — this turns a hard failure into useful behavior rather than a dead end.
+
+### Testing graceful degradation
+
+The example question `"How do I care for my string of pearls?"` in `app.py` deliberately exercises this path. Expected behavior: the agent acknowledges the plant isn't in its database, mentions what *is* available, and gives general succulent care advice based on the plant description.
