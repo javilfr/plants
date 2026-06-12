@@ -114,7 +114,15 @@ def run_agent(user_message: str, history: list) -> str:
     """
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     for msg in history:
-        messages.append({"role": msg["role"], "content": msg["content"]})
+        if isinstance(msg, dict):
+            # type='messages' format: {"role": ..., "content": ...}
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        else:
+            # type='tuples' format (Gradio default): [user_msg, assistant_msg]
+            if msg[0] is not None:
+                messages.append({"role": "user", "content": str(msg[0])})
+            if msg[1] is not None:
+                messages.append({"role": "assistant", "content": str(msg[1])})
     messages.append({"role": "user", "content": user_message})
 
     for _ in range(MAX_TOOL_ROUNDS):
